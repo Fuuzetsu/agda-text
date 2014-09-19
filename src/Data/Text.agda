@@ -7,76 +7,81 @@ module Data.Text where
 open import Data.Char
 open import Data.List as List using (List)
 open import Data.Maybe as Maybe using (Maybe)
-open import Data.Nat renaming (compare to compareℕ)
+open import Data.Nat
 open import Data.Product using (_,_; _×_)
 open import Data.String
 open import Data.Text.Array
 open import Data.Vec as V using (toList; []; _∷_; _∷ʳ_)
 open import Function
+open import Relation.Binary.PropositionalEquality
 
-data Text {n : ℕ} : Set where
-  text : Array n → Text
+data Text : Set where
+  text : ∀ {n} → Array n → Text
+
+
+length : Text → ℕ
+length (text (array {n} x)) = n
 
 pack : (s : String) → Text
 pack = text ∘ array ∘ toVec
 
-unpack : ∀ {n} → Text {n} → String
+unpack : Text → String
 unpack (text (array x)) = fromList (V.toList x)
 
-singleton : Char → Text {1}
+singleton : Char → Text
 singleton c = text (array ( c ∷ []))
 
-empty : Text {0}
+empty : Text
 empty = text (array V.[])
 
-cons : ∀ {n} → Char → Text {n} → Text {1 + n}
+cons : Char → Text → Text
 cons c (text (array x)) = text (array (c ∷ x))
 
-snoc : ∀ {n} → Text {n} → Char → Text {1 + n}
+snoc : Text → Char → Text
 snoc (text (array [])) c = text (array V.[ c ])
 snoc (text (array (x ∷ x₁))) c = cons x (snoc (text (array x₁)) c)
 
-append : ∀ {n m} → Text {n} → Text {m} → Text {n + m}
+append : Text → Text → Text
 append (text (array x)) (text (array x₁)) = text (array (x V.++ x₁))
 
-uncons : ∀ {n} → Text {n} → Maybe (Char × Text {pred n})
+uncons : Text → Maybe (Char × Text)
 uncons (text (array [])) = Maybe.nothing
 uncons (text (array (x ∷ x₁))) = Maybe.just (x , text (array x₁))
 
-head : ∀ {n} → Text {suc n} → Char
-head (text (array (x ∷ x₁))) = x
+head : (t : Text) → {p : 0 < length t} → Char
+head (text (array [])) {()}
+head (text (array (x ∷ x₁))) {s≤s x₂} = x
 
-last : ∀ {n} → Text {suc n} → Char
-last (text (array (x ∷ []))) = x
-last {suc n} (text (array (x ∷ x₁))) = last (text (array x₁))
+last : (t : Text) → {p : 0 < length t} → Char
+last (text (array [])) {()}
+last (text (array (x ∷ []))) {s≤s p} = x
+last (text (array (x ∷ x₁ ∷ x₂))) {s≤s p} =
+  last (text (array (x₁ ∷ x₂))) {s≤s z≤n}
 
-tail : ∀ {n} → Text {suc n} → Text {n}
-tail (text (array (x ∷ x₁))) = text (array x₁)
 
-init : ∀ {n} → Text {suc n} → Text {n}
-init (text (array x)) = text (array (V.init x))
+tail : (t : Text) → {p : 0 < length t} → Text
+tail (text (array [])) {()}
+tail (text (array (x ∷ x₁))) {s≤s p} = text (array x₁)
+
+init : (t : Text) → {p : 0 < length t} → Text
+init (text (array [])) {()}
+init (text (array x)) {s≤s p} = text (array (V.init x))
 
 
 open import Data.Bool as B
-null : ∀ {n} → Text {n} → B.Bool
+null : Text → B.Bool
 null (text (array [])) = B.true
 null (text (array (x ∷ x₁))) = B.false
 
-length : ∀ {n} → Text {n} → ℕ
-length {n} _ = n
+compareLength : (t : Text)→ (m : ℕ) → Ordering (length t) m
+compareLength t m = compare (length t) m
 
-compareLength : ∀ {n} → Text {n} → (m : ℕ) → Ordering n m
-compareLength t m = compareℕ (length t) m
 
-map : ∀ {n} → (Char → Char) → Text {n} → Text {n}
+map : (Char → Char) → Text → Text
 map f (text (array x)) = text (array (V.map f x))
 
--- _+⋎_ : ℕ → ℕ → ℕ
--- zero  +⋎ n = n
--- suc m +⋎ n = suc (n +⋎ m)
-
 -- Ugly addition ;_;
-intersperse : ∀ {n} → Char → Text {n} → Text {n +⋎ pred n}
+intersperse : Char → Text → Text
 intersperse c (text (array [])) = text (array [])
 intersperse c (text (array (x ∷ xs))) = text (array (x ∷ go xs))
   where
@@ -84,44 +89,24 @@ intersperse c (text (array (x ∷ xs))) = text (array (x ∷ go xs))
     go [] = []
     go {suc m} (y ∷ ys) = c ∷ y ∷ go ys
 
-reverse : ∀ {n} → Text {n} → Text {n}
+
+reverse : Text → Text
 reverse (text (array x)) = text (array (V.reverse x))
 
-
-open import Relation.Binary.PropositionalEquality
-open ≡-Reasoning
-
-subst' : ∀ {ℓ ℓ₁} {A : Set ℓ} {P : {_ : A} → Set ℓ₁} → {x y : A}
-       → x ≡ y → P {x} → P {y}
-subst' refl x₁ = x₁
-
--- | subst' specialised to Text
-st : ∀ {n m} → n ≡ m → Text {n} → Text {m}
-st = subst'
-
-open import Data.Nat.Properties.Simple
-replicate : ∀ {n} → (m : ℕ) → Text {n} → Text {m * n}
+replicate : ℕ → Text → Text
 replicate zero t = empty
-replicate {n} (suc zero) t = st (sym $ +-right-identity n) t
+replicate (suc zero) t = t
 replicate (suc m) t = append t (replicate m t)
 
-justifyLeft : ∀ {n} → (m : ℕ) → Char → Text {n} → Text {m ⊔ n}
-justifyLeft {n} zero c t = t
-justifyLeft {zero} m c t = st p (replicate m (singleton c))
-  where
-    l : ∀ m → m * 1 ≡ m
-    l zero = refl
-    l (suc m) = cong suc (l m)
-
-    l' : ∀ m → m ⊔ zero ≡ m
-    l' = λ { zero → refl; (suc m) → refl }
-
-    p : m * 1 ≡ m ⊔ zero
-    p = trans (l m) (sym $ l' m)
-
-justifyLeft (suc m) c (text (array (x ∷ x₁))) =
+justifyLeft : ℕ → Char → Text → Text
+justifyLeft zero c t = empty
+justifyLeft (suc m) c (text (array {zero} [])) =
+  replicate (suc m) (singleton c)
+justifyLeft (suc m) c (text (array {suc n} (x ∷ x₁))) =
   cons x (justifyLeft m c (text (array x₁)))
 
+
+open ≡-Reasoning
 
 {- TODO:
 * intercalate
