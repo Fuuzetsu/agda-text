@@ -16,74 +16,80 @@ open import Function
 open import Relation.Binary.PropositionalEquality
 
 data Text : Set where
-  text : ∀ {n} → Array n → Text
-
+  text : ∀ {n} → V.Vec Char n → Text
 
 length : Text → ℕ
-length (text (array {n} x)) = n
+length (text {n} x) = n
 
 pack : (s : String) → Text
-pack = text ∘ array ∘ toVec
+pack = text ∘ toVec
 
 unpack : Text → String
-unpack (text (array x)) = fromList (V.toList x)
+unpack (text x) = fromList (V.toList x)
 
 singleton : Char → Text
-singleton c = text (array ( c ∷ []))
+singleton c = text (c ∷ [])
 
 empty : Text
-empty = text (array V.[])
+empty = text V.[]
 
 cons : Char → Text → Text
-cons c (text (array x)) = text (array (c ∷ x))
+cons c (text x) = text (c ∷ x)
 
 snoc : Text → Char → Text
-snoc (text (array [])) c = text (array V.[ c ])
-snoc (text (array (x ∷ x₁))) c = cons x (snoc (text (array x₁)) c)
+snoc (text []) c = text V.[ c ]
+snoc (text (x ∷ x₁)) c = cons x (snoc (text x₁) c)
 
 append : Text → Text → Text
-append (text (array x)) (text (array x₁)) = text (array (x V.++ x₁))
+append (text x) (text x₁) = text (x V.++ x₁)
 
 uncons : Text → Maybe (Char × Text)
-uncons (text (array [])) = Maybe.nothing
-uncons (text (array (x ∷ x₁))) = Maybe.just (x , text (array x₁))
+uncons (text []) = Maybe.nothing
+uncons (text (x ∷ x₁)) = Maybe.just (x , text x₁)
 
 head : (t : Text) → {p : 0 < length t} → Char
-head (text (array [])) {()}
-head (text (array (x ∷ x₁))) {s≤s x₂} = x
+head (text []) {()}
+head (text (x ∷ x₁)) {s≤s x₂} = x
 
 last : (t : Text) → {p : 0 < length t} → Char
-last (text (array [])) {()}
-last (text (array (x ∷ []))) {s≤s p} = x
-last (text (array (x ∷ x₁ ∷ x₂))) {s≤s p} =
-  last (text (array (x₁ ∷ x₂))) {s≤s z≤n}
+last (text []) {()}
+last (text (x ∷ [])) {s≤s p} = x
+last (text (x ∷ x₁ ∷ x₂)) {s≤s p} =
+  last (text (x₁ ∷ x₂)) {s≤s z≤n}
 
 
 tail : (t : Text) → {p : 0 < length t} → Text
-tail (text (array [])) {()}
-tail (text (array (x ∷ x₁))) {s≤s p} = text (array x₁)
+tail (text []) {()}
+tail (text (x ∷ x₁)) {s≤s p} = text x₁
 
 init : (t : Text) → {p : 0 < length t} → Text
-init (text (array [])) {()}
-init (text (array x)) {s≤s p} = text (array (V.init x))
+init (text []) {()}
+init (text x) {s≤s p} = text (V.init x)
 
 
 open import Data.Bool as B
 null : Text → B.Bool
-null (text (array [])) = B.true
-null (text (array (x ∷ x₁))) = B.false
+null (text []) = B.true
+null (text (x ∷ x₁)) = B.false
 
 compareLength : (t : Text)→ (m : ℕ) → Ordering (length t) m
 compareLength t m = compare (length t) m
 
-
 map : (Char → Char) → Text → Text
-map f (text (array x)) = text (array (V.map f x))
+map f (text x) = text (V.map f x)
+
+intercalate-go : Text → List Text → Text
+intercalate-go _ List.[] = empty
+intercalate-go t (y List.∷ ys) = append (append t y) (intercalate-go t ys)
+
+intercalate : Text → List Text → Text
+intercalate t List.[] = empty
+intercalate t (x List.∷ ts) = append x (intercalate-go t ts)
 
 -- Ugly addition ;_;
 intersperse : Char → Text → Text
-intersperse c (text (array [])) = text (array [])
-intersperse c (text (array (x ∷ xs))) = text (array (x ∷ go xs))
+intersperse c (text []) = text []
+intersperse c (text (x ∷ xs)) = text (x ∷ go xs)
   where
     go : ∀ {m} → V.Vec Char m → V.Vec Char (m +⋎ m)
     go [] = []
@@ -91,7 +97,7 @@ intersperse c (text (array (x ∷ xs))) = text (array (x ∷ go xs))
 
 
 reverse : Text → Text
-reverse (text (array x)) = text (array (V.reverse x))
+reverse (text x) = text (V.reverse x)
 
 replicate : ℕ → Text → Text
 replicate zero t = empty
@@ -100,10 +106,8 @@ replicate (suc m) t = append t (replicate m t)
 
 justifyLeft : ℕ → Char → Text → Text
 justifyLeft zero c t = empty
-justifyLeft (suc m) c (text (array {zero} [])) =
-  replicate (suc m) (singleton c)
-justifyLeft (suc m) c (text (array {suc n} (x ∷ x₁))) =
-  cons x (justifyLeft m c (text (array x₁)))
+justifyLeft (suc m) c (text []) = replicate (suc m) (singleton c)
+justifyLeft (suc m) c (text (x ∷ x₁)) = cons x (justifyLeft m c (text x₁))
 
 
 open ≡-Reasoning
