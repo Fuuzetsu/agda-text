@@ -2,16 +2,27 @@
 -- package. Notably, this does not prove ‘text’ correct, it just aims
 -- to give the same results with none of the performance or
 -- implementation.
-module Data.Text where
-
 
 open import Data.Char
+open import Data.Bool
+
+
+-- We parametrise the module by the isSpace function so we don't have
+-- to bother with the icky unicode stuff right now. One possible naive
+-- implementation is:
+--
+-- isSpace : Char →
+-- Bool isSpace c = (c == ' ') ∨ (c == '\t') ∨ (c == '\n') ∨ (c ==
+-- '\r') ∨ (c == '\f') ∨ (c == '\v')
+
+module Data.Text (isSpace : Char → Bool) where
+
 open import Data.Fin as F using ()
 open import Data.List as List using (List)
 open import Data.Maybe as Maybe using (Maybe)
 open import Data.Nat
 open import Data.Product using (_,_; _×_)
-open import Data.String
+open import Data.String hiding (_==_)
 open import Data.Text.Array
 open import Data.Vec as V using (toList; []; _∷_; _∷ʳ_)
 open import Function
@@ -58,11 +69,11 @@ cons c t = itext′ (consi c (itext t))
     consi : ∀ {m} → Char → IText m → IText (suc m)
     consi c₁ (itext (text x)) = itext (text (c₁ ∷ x))
 
+snoci : ∀ {m} → IText m → Char → IText (suc m)
+snoci (itext (text x)) c′ = itext (text (x V.∷ʳ c′))
+
 snoc : Text → Char → Text
 snoc t c = itext′ $ snoci (itext t) c
-  where
-    snoci : ∀ {m} → IText m → Char → IText (suc m)
-    snoci (itext (text x)) c′ = itext (text (x V.∷ʳ c′))
 
 append : Text → Text → Text
 append (text x) t' = itext′ (liftV (V._++_ x) (itext t'))
@@ -89,10 +100,9 @@ init : (t : Text) → {p : 0 < length t} → Text
 init (text []) {()}
 init (text x) {s≤s p} = text x
 
-open import Data.Bool as B
-null : Text → B.Bool
-null (text []) = B.true
-null (text (x ∷ x₁)) = B.false
+null : Text → Bool
+null (text []) = true
+null (text (x ∷ x₁)) = false
 
 compareLength : (t : Text)→ (m : ℕ) → Ordering (length t) m
 compareLength t m = compare (length t) m
@@ -164,15 +174,80 @@ all p (text (x ∷ body)) with p x
 ... | true = all p (text body)
 ... | false = false
 
+-- unfoldr can potentially not terminate so we skip the implementation
+-- of that for now. Easily worked around with unfoldrN which ‘text’
+-- provides unless we want an infinite stream. Perhaps co-induction
+-- could be used to implement unfoldr. Taking a proof of termination
+-- is a bit sub-par because it doesn't reflect the Haskell type very
+-- well.
+unfoldrN : ∀ {ℓ} {A : Set ℓ} → ℕ → (A → Maybe (Char × A)) → A → Text
+unfoldrN zero _ _ = empty
+unfoldrN (suc n) f s with f s
+... | Maybe.just (proj₁ , proj₂) = cons proj₁ (unfoldrN n f proj₂)
+... | Maybe.nothing = empty
+
 take : ℕ → Text → Text
 take (suc n) (text (x ∷ body)) = cons x (take n (text body))
 take _ t = empty
+
+takeEnd : ℕ → Text → Text
+takeEnd n = take n ∘ reverse
 
 drop : ℕ → Text → Text
 drop (suc n) (text (x ∷ body)) = drop n (text body)
 drop _ t = t
 
-{- stopped at Substrings today -}
+dropEnd : ℕ → Text → Text
+dropEnd n = reverse ∘ drop n ∘ reverse
+
+takeWhile : (Char → Bool) → Text → Text
+takeWhile p (text []) = empty
+takeWhile p (text (x ∷ body)) with p x
+... | true = cons x (takeWhile p (text body))
+... | false = empty
+
+dropWhile : (Char → Bool) → Text → Text
+dropWhile p (text []) = empty
+dropWhile p (text (x ∷ body)) with p x
+... | true = dropWhile p (text body)
+... | false = empty
+
+dropWhileEnd : (Char → Bool) → Text → Text
+dropWhileEnd p = reverse ∘ dropWhile p ∘ reverse
+
+dropAround : (Char → Bool) → Text → Text
+dropAround p = dropWhileEnd p ∘ dropWhile p
+
+strip : Text → Text
+strip = dropAround isSpace
+
+stripStart : Text → Text
+stripStart = dropWhile isSpace
+
+stripEnd : Text → Text
+stripEnd = dropWhileEnd isSpace
+
+splitAt : ℕ → Text → Text × Text
+splitAt n' t' = unix (go (itext empty ◆ itext t') n')
+  where
+    -- While this is a round-about way, it ensures we preserve the
+    -- length.
+    data i× : ℕ → Set where
+      _◆_ : ∀ {m n} → IText m → IText n → i× (m + n)
+
+    unix : ∀ {m} → i× m → Text × Text
+    unix (itext x ◆ itext x₁) = x , x₁
+
+    open import Data.Nat.Properties.Simple
+    go : ∀ {n} → i× n → ℕ → i× n
+    go c zero = c
+    go (x ◆ itext (text [])) (suc n₁) = x ◆ itext empty
+    go ((itext (text {n} l)) ◆ itext (text {suc m} (x₁ ∷ body))) (suc n₁) =
+      go (subst i× (sym (+-suc n m)) r) n₁
+      where
+        r = itext (snoc (text l) x₁) ◆ itext (text body)
+
+{- stoped at breakOn -}
 
 {- TODO:
 * transpose
