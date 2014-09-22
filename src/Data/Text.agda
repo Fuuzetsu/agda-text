@@ -3,8 +3,8 @@
 -- to give the same results with none of the performance or
 -- implementation.
 
-open import Data.Char
-open import Data.Bool
+open import Data.Char as C using (Char)
+open import Data.Bool hiding (_≟_)
 
 
 -- We parametrise the module by the isSpace function so we don't have
@@ -20,13 +20,13 @@ module Data.Text (isSpace : Char → Bool) where
 open import Data.Fin as F using ()
 open import Data.List as List using (List)
 open import Data.Maybe as Maybe using (Maybe)
-open import Data.Nat
+open import Data.Nat hiding (_≟_)
 open import Data.Product using (_,_; _×_)
-open import Data.String hiding (_==_)
+open import Data.String hiding (_==_; _≟_)
 open import Data.Text.Array
 open import Data.Vec as V using (toList; []; _∷_; _∷ʳ_)
 open import Function
-open import Relation.Binary.PropositionalEquality
+open import Relation.Binary.PropositionalEquality as P
 
 record Text : Set where
   constructor text
@@ -34,7 +34,39 @@ record Text : Set where
     {length} : ℕ
     body : V.Vec Char length
 
+
 open Text
+open import Relation.Nullary
+open import Relation.Binary
+open import Relation.Nullary.Decidable using (⌊_⌋)
+
+-- dec : Decidable (_≡_ {A = Text})
+-- dec (text body) (text body₁) = {!!}
+
+-- _≟_ : Decidable {A = Text} _≡_
+-- text body ≟ text body₁ = yes {!!}
+--   where
+--     import Level as L
+--     open import Data.Vec.Equality
+--     ds = DecSetoid L.zero L.zero
+--     private module DE = DecidableEquality (P.decSetoid C._≟_)
+--     open DE
+--     open import Relation.Nullary
+--     private module PE = PropositionalEquality
+--     -- open Equality DE.decSetoid
+
+--     _≟'_ : ∀ {m} → Decidable {A = V.Vec Char m} _≡_
+--     xs ≟' ys with xs DE.≟ ys
+--       where
+--         dec : Dec {!(P.decSetoid C._≟_ .Data.Vec.Equality.DecidableEquality._.≈ xs) ys!}
+--         dec = xs DE.≟ ys
+--     xs ≟' ys | yes p = yes (PE.to-≡ p)
+--     [] ≟' [] | no ¬p = yes refl
+--     (x ∷ xs) ≟' (x₁ ∷ ys) | no ¬p = no {!!}
+
+
+-- _==_ : Text → Text → Bool
+-- t == t₁ = ⌊ t ≟ t₁ ⌋
 
 untext : (t : Text) → V.Vec Char (length t)
 untext (text x) = x
@@ -246,6 +278,9 @@ splitAt n' t' = unix (go (itext empty ◆ itext t') n')
       go (subst i× (sym (+-suc n m)) r) n₁
       where
         r = itext (snoc (text l) x₁) ◆ itext (text body)
+
+breakOn : Text → Text → Text × Text
+breakOn t t' = {!!}
 
 {- stoped at breakOn -}
 
