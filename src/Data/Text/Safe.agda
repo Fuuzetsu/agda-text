@@ -135,16 +135,52 @@ drop = _
 dropEnd : (m : ℕ) → ∀ {n v} → Text (m + n) v → Text n (V.drop m (V.reverse v))
 dropEnd = _
 
-unrollVec : ∀ {n} → (v : V.Vec (P.∃₂ Text) n)
+Text* : ℕ → Set
+Text* = V.Vec (P.∃₂ Text)
+
+unrollVec : ∀ {n} → (v : Text* n)
           → V.Vec _ (V.sum (V.map P.proj₁ v))
 unrollVec V.[] = V.[]
 unrollVec (x V.∷ x₁) = P.proj₁ (P.proj₂ x) V.++ unrollVec x₁
 
-concat : ∀ {n} → (x : V.Vec (P.∃₂ Text) n) → Text _ _
+concat : ∀ {n} → (x : Text* n) → Text _ _
 concat = vec→text ∘ unrollVec
 
 concatMap : ∀ {n v} → (f : _ → P.∃₂ Text) → Text n v → Text _ _
 concatMap {v = v} f _ = concat (V.map f v)
+
+splitAt : (m : ℕ) → ∀ {n v} → Text (m + n) v
+        → Text m (P.proj₁ (V.splitAt m v))
+           P.× Text n (P.proj₁ (P.proj₂ (V.splitAt m v)))
+splitAt = _
+
+len : ∀ {n ℓ} {A : Set ℓ} → V.Vec A n → ℕ
+len {n} _ = n
+
+vec : (v : P.∃₂ Text) → V.Vec Char (len (P.proj₁ (P.proj₂ v)))
+vec (proj₁ P., proj₂ P., proj₃) = proj₂
+
+-- Prefix each inner vector with the given one
+intercalate-go : ∀ {n m v}
+               → (t : Text n v)
+               → (tl : Text* m)
+               → V.Vec (P.∃₂ (λ o → Text (n + o))) m
+intercalate-go t = V.map (λ x → _ P., _ P., append t (P.proj₂ (P.proj₂ x)))
+
+
+headVec : ∀ {m} → (t : Text* (suc m)) → V.Vec Char (len (vec (V.head t)))
+headVec ((proj₁ P., proj₂ P., proj₃) V.∷ xs) = proj₂
+
+-- intercalate : ∀ {n v m} → (t : Text n v) (tl : Text* m)
+--             → Text (((len tl ∸ 1) * len v) + length (concat tl)) {!!}
+-- intercalate _ V.[] = empty
+-- intercalate t (v V.∷ vs) = append (P.proj₂ (P.proj₂ v)) (concat (intercalate-go {!t!} vs))
+
+-- intersperseVec : ∀ {n ℓ} {A : Set ℓ} (a : A) → V.Vec A n → V.Vec A (n * 2 ∸ 1)
+
+-- intercalate : ∀ {n v m} → (t : Text n v) (tl : Text* m)
+--             → Text _ _
+-- intercalate {v = v} = {!!}
 
 -- What a nasty thing.
 data Any {ℓ} (P : Char → Set ℓ) : ∀ {n v} → Text n v → Set ℓ where
